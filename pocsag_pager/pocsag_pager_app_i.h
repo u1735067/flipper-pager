@@ -64,9 +64,14 @@ void pcsg_get_frequency_modulation(
     POCSAGPagerApp* app,
     FuriString* frequency,
     FuriString* modulation);
+bool pcsg_is_frequency_valid(uint32_t value);
+uint32_t pcsg_set_frequency_and_path(uint32_t value);
 void pcsg_begin(POCSAGPagerApp* app, uint8_t* preset_data);
 uint32_t pcsg_rx(POCSAGPagerApp* app, uint32_t frequency);
 void pcsg_idle(POCSAGPagerApp* app);
 void pcsg_rx_end(POCSAGPagerApp* app);
 void pcsg_sleep(POCSAGPagerApp* app);
 void pcsg_hopper_update(POCSAGPagerApp* app);
+void pgsg_subghz_setting_load(
+    SubGhzSetting* instance,
+    const char* file_path);

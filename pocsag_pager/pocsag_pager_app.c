@@ -83,7 +83,7 @@ POCSAGPagerApp* pocsag_pager_app_alloc() {
 
     //ToDo FIX  file name setting
 
-    subghz_setting_load(app->setting, EXT_PATH("pocsag/settings.txt"));
+    pgsg_subghz_setting_load(app->setting, EXT_PATH("pocsag/settings.txt"));
 
     //init Worker & Protocol & History
     app->lock = PCSGLockOff;
