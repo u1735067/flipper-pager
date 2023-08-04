@@ -1,2 +1,5 @@
-
+.idea
+.vscode
+CMakeLists.txt
+dist
 .DS_Store

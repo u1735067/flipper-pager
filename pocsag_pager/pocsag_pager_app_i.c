@@ -3,6 +3,37 @@
 #define TAG "POCSAGPager"
 #include <flipper_format/flipper_format_i.h>
 
+
+// Hacky hack !
+#include <m-list.h>
+
+typedef struct {
+    FuriString* custom_preset_name;
+    uint8_t* custom_preset_data;
+    size_t custom_preset_data_size;
+} SubGhzSettingCustomPresetItem;
+
+ARRAY_DEF(SubGhzSettingCustomPresetItemArray, SubGhzSettingCustomPresetItem, M_POD_OPLIST)
+
+#define M_OPL_SubGhzSettingCustomPresetItemArray_t() \
+    ARRAY_OPLIST(SubGhzSettingCustomPresetItemArray, M_POD_OPLIST)
+
+LIST_DEF(FrequencyList, uint32_t)
+
+#define M_OPL_FrequencyList_t() LIST_OPLIST(FrequencyList)
+
+typedef struct {
+    SubGhzSettingCustomPresetItemArray_t data;
+} SubGhzSettingCustomPresetStruct;
+
+struct SubGhzSetting {
+    FrequencyList_t frequencies;
+    FrequencyList_t hopper_frequencies;
+    SubGhzSettingCustomPresetStruct* preset;
+};
+// /Hacky hack !
+
+
 void pcsg_preset_init(
     void* context,
     const char* preset_name,
@@ -45,16 +76,75 @@ void pcsg_begin(POCSAGPagerApp* app, uint8_t* preset_data) {
     app->txrx->txrx_state = PCSGTxRxStateIDLE;
 }
 
+bool pcsg_is_frequency_valid(const SubGhzDevice* device, uint32_t value) {
+    UNUSED(device);
+
+    if(!(value >= 281000000 && value <= 361000000) &&
+       !(value >= 378000000 && value <= 481000000) &&
+       !(value >= 749000000 && value <= 962000000)) {
+        return false;
+    }
+
+    return true;
+}
+
+// subghz_setting_load
+void pgsg_setting_load(SubGhzSetting* instance, const char* file_path) {
+    subghz_setting_load(instance, file_path);
+
+    furi_assert(instance);
+
+    // Add more freqs, bypassing the subghz_setting_load checks
+    FrequencyList_push_back(instance->frequencies, 466000000);
+    FrequencyList_push_back(instance->frequencies, 466025000);
+    FrequencyList_push_back(instance->frequencies, 466050000);
+    FrequencyList_push_back(instance->frequencies, 466075000);
+    FrequencyList_push_back(instance->frequencies, 466175000);
+    FrequencyList_push_back(instance->frequencies, 466206250);
+    FrequencyList_push_back(instance->frequencies, 466231250);
+    FrequencyList_push_back(instance->frequencies, 466475000);
+    FrequencyList_push_back(instance->frequencies, 466525000);
+    FrequencyList_push_back(instance->frequencies, 466575000);
+
+    // Replace hopping freqs with std freqs
+    FrequencyList_reset(instance->hopper_frequencies);
+    FrequencyList_push_back(instance->hopper_frequencies, 466025000);
+    FrequencyList_push_back(instance->hopper_frequencies, 466050000);
+    FrequencyList_push_back(instance->hopper_frequencies, 466075000);
+    FrequencyList_push_back(instance->hopper_frequencies, 466175000);
+    FrequencyList_push_back(instance->hopper_frequencies, 466206250);
+    FrequencyList_push_back(instance->hopper_frequencies, 466231250);
+}
+
+// subghz_device_cc1101_int_interconnect_set_frequency
+// > furi_hal_subghz_set_frequency_and_path
+uint32_t pcsg_set_frequency(const SubGhzDevice* device, uint32_t value) {
+    UNUSED(device);
+
+    // Set these values to the extended frequency range
+    value = furi_hal_subghz_set_frequency(value);
+    if(value >= 281000000 && value <= 361000000) {
+        furi_hal_subghz_set_path(FuriHalSubGhzPath315);
+    } else if(value >= 378000000 && value <= 481000000) {
+        furi_hal_subghz_set_path(FuriHalSubGhzPath433);
+    } else if(value >= 749000000 && value <= 962000000) {
+        furi_hal_subghz_set_path(FuriHalSubGhzPath868);
+    } else {
+        furi_crash("SubGhz: Incorrect frequency during set.");
+    }
+    return value;
+}
+
 uint32_t pcsg_rx(POCSAGPagerApp* app, uint32_t frequency) {
     furi_assert(app);
-    if(!subghz_devices_is_frequency_valid(app->txrx->radio_device, frequency)) {
+    if(!pcsg_is_frequency_valid(app->txrx->radio_device, frequency)) {
         furi_crash("POCSAGPager: Incorrect RX frequency.");
     }
     furi_assert(
         app->txrx->txrx_state != PCSGTxRxStateRx && app->txrx->txrx_state != PCSGTxRxStateSleep);
 
     subghz_devices_idle(app->txrx->radio_device);
-    uint32_t value = subghz_devices_set_frequency(app->txrx->radio_device, frequency);
+    uint32_t value = pcsg_set_frequency(app->txrx->radio_device, frequency);
 
     // Not need. init in subghz_devices_start_async_tx
     // furi_hal_gpio_init(furi_hal_subghz.cc1101_g0_pin, GpioModeInput, GpioPullNo, GpioSpeedLow);
